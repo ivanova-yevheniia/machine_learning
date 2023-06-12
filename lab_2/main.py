@@ -1,236 +1,146 @@
-import pandas as pd
-import sklearn.metrics as m
-import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import graphviz
+from matplotlib import pyplot as plt
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, f1_score
+from sklearn.model_selection import train_test_split
+from sklearn import tree
+from sklearn.tree import export_graphviz, DecisionTreeClassifier
 
-LINE_MODEL_1 = '-'
-LINE_MODEL_2 = '--'
+df = pd.read_csv("WQ-R.csv", sep=';')
 
-df = pd.read_csv("KM-02-1.csv")
-class1 = df[df['GT'] == 1]
-class0 = df[df['GT'] == 0]
+def tree_influence(depth, min_el_count):
+    classifier_dict = {
+        'accuracy': [],
+        'precision': [],
+        'recall': [],
+        'f1': []
+    }
+    for d in depth:
+        a = []
+        p = []
+        r = []
+        f = []
+        for el in min_el_count:
+            dt = DecisionTreeClassifier(max_depth=d, min_samples_leaf=el, random_state=0)
+            dt.fit(X_train, y_train)
+            y_pred = dt.predict(X_test)
+            score = classification_report(y_test, y_pred, output_dict=True)
+            a.append(score['accuracy'])
+            p.append(score['weighted avg']['precision'])
+            r.append(score['weighted avg']['recall'])
+            f.append(score['weighted avg']['f1-score'])
 
-def get_model_predicate(model_name: str, threshold: float, d):
-    '''
-    Calculate the values of predicated Yes depending on threshold
-    :param model_name: name of chosen model
-    :param threshold: step
-    :param d: dataframe
-    :return: pandas column with values of predicated Yes
-    '''
-    d['M_pred'] = d[model_name].map(lambda x: 1 if x > threshold else 0)
-    return d['M_pred']
+        classifier_dict['accuracy'].append(a)
+        classifier_dict['precision'].append(p)
+        classifier_dict['recall'].append(r)
+        classifier_dict['f1'].append(f)
 
-def metrics_calculate(y_true, y_pred):
-    '''
-    Calculate metrics values
-    :param y_true: True Positive
-    :param y_pred: Predicated Yes (TP+FP)
-    :return: dictionary with metrics-value
-    '''
-    precision, recall, thresh = m.precision_recall_curve(y_true, y_pred)
-    return {"accuracy": m.accuracy_score(y_true, y_pred),
-            "precision": m.precision_score(y_true, y_pred),
-            "recall": m.recall_score(y_true, y_pred),
-            "F-Scores": m.f1_score(y_true, y_pred),
-            "Matthews Correlation Coefficient": m.matthews_corrcoef(y_true, y_pred),
-            "Balanced Accuracy": m.balanced_accuracy_score(y_true, y_pred),
-            "Youden’s J statistics": m.balanced_accuracy_score(y_true, y_pred, adjusted=True),
-            "Area Under Curve for Precision-Recall Curve": m.auc(recall, precision),
-            "Area Under Curve for Receiver Operation Curve": m.roc_auc_score(y_true, y_pred)}
+    return classifier_dict
 
-def create_metrics_df(t: float, model: str, d):
-    '''
-    Plot metrics depending on threshold changes
-    :param t: step of threshold
-    :param d: dataframe
-    :param model: the name of model
-    '''
-    threshold = np.arange(0, 1 + t, t).tolist()
-    m = pd.DataFrame(columns=['accuracy', 'precision', 'recall', 'F-scores', 'MCC', 'balanced accuracy', 'Youden’s J stat',
-                              'under PR', 'under ROC', 'threshold'])
-    for element in threshold:
-        d["M_pred"] = get_model_predicate(model, element, d)
-        metrics_t = metrics_calculate(d["GT"], d["M_pred"])
-        metrics_t["threshold"] = element
-        m.loc[len(m.index)] = list(metrics_t.values())
-    return m
+def plot_influence(depth, min_el_count):
+    fig = plt.figure()
+    classifier_plot = tree_influence(depth, min_el_count)
+    X, Y = np.meshgrid(depth, min_el_count)
+    Z = [np.array(classifier_plot[i]) for i in classifier_plot.keys()]
 
-def draw_metrics_plots(t: float, d):
-    '''
-    Plot the metrics results depending on threshold
-    :param t: step of threshold
-    :param d: dataframe old or new
-    :return: dataframe with all metrics values
-    '''
-    m1 = create_metrics_df(t, "Model_1", d)
-    m2 = create_metrics_df(t, "Model_2", d)
-    m = pd.merge(m1, m2, on='threshold')
-    m.set_index('threshold', inplace=True)
-    max_values = list(m.max())
-    max_indexes = list(m.idxmax())
-    stl = []
-    for i in range(0, 9): stl.append(LINE_MODEL_1)
-    for i in range(0, 9): stl.append(LINE_MODEL_2)
-    ax = m.plot.line(title='Значення метрик', legend=True, style=stl)
-    plt.plot(max_indexes, max_values, 'o')
-    ax.legend(ncol=2)
-    plt.show()
-    return m
+    for i in range(0, len(Z)):
+        ax = fig.add_subplot(2, 2, i+1, projection='3d')
+        ax.plot_surface(X, Y, Z[i], cmap='viridis')
+        name = str(list(classifier_plot.keys())[i])
+        ax.set_title(name + ' score plot')
+        ax.set_xlabel('depth')
+        ax.set_ylabel('element')
+        ax.set_zlabel(name)
 
-def create_pr_curve(d):
-    '''
-    Plot PR-curve
-    :param d: dataframe old or new
-    '''
-    precision, recall, thresholds = m.precision_recall_curve(d['GT'], d['Model_1'])
-    f1_scores = 2 * (precision * recall) / (precision + recall)
-    optimal_idx = np.argmax(f1_scores)
-    plt.plot(recall, precision, label="Model_1")
-    plt.scatter(recall[optimal_idx], precision[optimal_idx])
-
-    precision, recall, thresholds = m.precision_recall_curve(d['GT'], d['Model_2'])
-    f1_scores = 2 * (precision * recall) / (precision + recall)
-    optimal_idx = np.argmax(f1_scores)
-    plt.plot(recall, precision, label="Model_2")
-    plt.scatter(recall[optimal_idx], precision[optimal_idx])
-
-    plt.title("PR-curve")
-    plt.xlabel("Recall")
-    plt.ylabel("Precision")
-    plt.legend()
+    plt.tight_layout()
     plt.show()
 
+def plot_importance(clf_list, names):
+    col = len(clf_list)
+    fig, axes = plt.subplots(nrows=1, ncols=col, figsize=(12, 4))
+    for i in range(0, col):
+        importance = clf_list[i].feature_importances_
+        axes[i].bar(range(X_train.shape[1]), importance)
+        axes[i].set_xlabel('Features')
+        axes[i].set_ylabel('Importance')
+        axes[i].set_title(names[i])
 
-def create_roc_curve(d):
-    '''
-    Plot ROC-curve
-    :param d: dataframe old or new
-    '''
-    fpr, tpr, thresholds = m.roc_curve(d['GT'], d['Model_1'])
-    optimal_idx = np.argmax(tpr - fpr)
-    plt.plot(fpr, tpr, label='Model_1')
-    plt.scatter(fpr[optimal_idx], tpr[optimal_idx])
-
-    fpr, tpr, thresholds = m.roc_curve(d['GT'], d['Model_2'])
-    optimal_idx = np.argmax(tpr - fpr)
-    plt.plot(fpr, tpr, label='Model_2')
-    plt.scatter(fpr[optimal_idx], tpr[optimal_idx])
-
-    plt.title("ROC curve")
-    plt.legend()
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
+    plt.tight_layout()
     plt.show()
-
-def create_classifier_plot(t: float, m, d, model: str):
-    '''
-    Plot classifier score depending on the threshold
-    :param t: step of threshold
-    :param m: dataframe with metrics values
-    :param d: dataframe new or old
-    '''
-    class_df = pd.DataFrame(columns=['threshold', 'Class 0', 'Class 1'])
-    threshold = np.arange(0, 1 + t, t).tolist()
-
-    for element in threshold:
-        vals = get_model_predicate(model, element, d).value_counts()
-        if list(vals.index)[0]==0 and len(list(vals.index))==2:
-            class_df.loc[len(class_df.index)] = [element, vals[0], vals[1]]
-        elif list(vals.index)[0]==1: class_df.loc[len(class_df.index)] = [element, 0, vals[1]]
-        else: class_df.loc[len(class_df.index)] = [element, vals[0], 0]
-
-    optimal_threshold = list(m.idxmax())
-    class_df.set_index('threshold', inplace=True)
-
-    ax = class_df.plot.line()
-    for element in optimal_threshold:
-        ax.axvline(element, color='g', linestyle='--')
-
-    plt.xticks(np.arange(0, 1+t, t))
-    plt.title('Оцінка класифікатора')
-    plt.show()
-
-
 
 if __name__ == '__main__':
-    '''Чи збалансований набір даних?'''
-    print('[class 0, class 1]')
-    vals = list(df['GT'].value_counts())
-    print(vals)
-    if vals[0]==vals[1]: print('data is balanced')
-    else: print('data is unbalanced')
+    num_rows, num_columns = df.shape
+    print("Number of rows:", num_rows, " Number of columns:", num_columns)
+    print("10 ROWS:")
+    print(df.head(10).to_string())
 
-    '''Обчислити всі метрики для кожної моделі'''
-    threshold = float(input('Enter threshold: '))
+    '''Розділити набір даних на навчальну(тренувальну) та тестову вибірки'''
+    X = df.drop('quality', axis=1)  # features
+    y = df['quality']  # target
 
-    df["M1_pred"] = get_model_predicate('Model_1', threshold, df)
-    df["M2_pred"] = get_model_predicate('Model_2', threshold, df)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=0)
 
-    print('----------METRICS----------')
-    print('Model_1: ')
-    print(metrics_calculate(df['GT'], df['M1_pred']))
-    print('Model_2: ')
-    print(metrics_calculate(df['GT'], df['M2_pred']))
+    print(f"X_train: \n{X_train.head()}\n")
+    print(f"y_train: \n{y_train.head()}\n")
 
-    '''Збудувати на одному графіку в одній координатній системі
-    (величина порогу; значення метрики) графіки усіх обчислених
-    метрик, відмітивши певним чином максимальне значення кожної
-    з них'''
-    metrs = draw_metrics_plots(threshold, df)
-    print('created chart with METRICS VALUES')
+    '''Збудувати класифікаційну модель дерева прийняття рішень глибини 5 та навчити
+    її на тренувальній вибірці'''
+    clf = tree.DecisionTreeClassifier(max_depth=5)
+    clf.fit(X_train, y_train)
 
-    '''Збудувати в координатах (значення оцінки класифікаторів; 
-    кількість об’єктів кожного класу) окремі для кожного класу
-    графіки кількості об’єктів та відмітити вертикальними лініями
-    оптимальні пороги відсічення для кожної метрики'''
-    print('created CLASSIFIER GRAPH for MODEL 1')
-    create_classifier_plot(threshold, metrs, df, 'Model_1')
-    print('created CLASSIFIER GRAPH for MODEL 2')
-    create_classifier_plot(threshold, metrs, df, 'Model_2')
+    '''Представити графічно побудоване дерево'''
+    dot_data = export_graphviz(clf, out_file=None, feature_names=X.columns, filled=True, rounded=True,
+                               special_characters=True)
+    tr = graphviz.Source(dot_data)
+    tr.view(filename="Decision Tree")
+    print('ПОБУДОВАНО DECISION TREE')
 
-    '''Збудувати для кожного класифікатору PR-криву та ROC-криву, 
-    показавши графічно на них значення оптимального порогу.'''
-    print('created PR-CURVE')
-    create_pr_curve(df)
-    print('created ROC-CURVE')
-    create_roc_curve(df)
+    '''Обчислити класифікаційні метрики збудованої моделі для тренувальної
+    та тестової вибірки.'''
+    y_train_pred = clf.predict(X_train)
+    y_test_pred = clf.predict(X_test)
 
-    '''Створити новий набір даних, прибравши з початкового набору 
-    (50 + 10К)% об’єктів класу 1, вибраних випадковим чином.'''
-    print('CREATING NEW DATASET...')
-    date = '10-09'
-    print('Date: ', date)
-    new_date = date.split('-')
-    if new_date[1][0] == '0': month = int(new_date[1][1])
-    else: month = int(new_date[1])
-    k = month % 4
-    percent = (50 + 10*k)/100
-    print('Remove ', percent, '% of class 1')
-    row_num = int(vals[1]*percent)
-    print('Total: ', row_num, 'rows')
-    df_new = df.copy()
-    rows_to_del = df_new[df_new['GT'] == 1].sample(n=row_num).index
-    df_new = df_new.drop(rows_to_del)
-    print(df_new['GT'].value_counts())
-    df_new.to_csv('new.csv', index=False)
-    print('Created new.csv with new dataset')
+    print('--------ТРЕНУВАЛЬНА ВИБІРКА--------')
+    print(classification_report(y_train, y_train_pred))
 
-    '''Виконати дії п.3 для нового набору даних.'''
-    print('----------METRICS----------')
-    df_new["M1_pred"] = get_model_predicate('Model_1', threshold, df_new)
-    df_new["M2_pred"] = get_model_predicate('Model_2', threshold, df_new)
+    print('--------ТЕСТОВА ВИБІРКА--------')
+    print(classification_report(y_test, y_test_pred))
+    print('Представимо роботу моделі графічно через матрицю помилок')
+    print(confusion_matrix(y_test, y_test_pred))
 
-    print('Model_1: ')
-    print(metrics_calculate(df_new['GT'], df_new['M1_pred']))
-    print('Model_2: ')
-    print(metrics_calculate(df_new['GT'], df_new['M2_pred']))
-    metrs = draw_metrics_plots(threshold, df_new)
-    print('created CLASSIFIER GRAPH for MODEL 1')
-    create_classifier_plot(threshold, metrs, df_new, 'Model_1')
-    print('created CLASSIFIER GRAPH for MODEL 2')
-    create_classifier_plot(threshold, metrs, df_new, 'Model_2')
-    print('created PR-CURVE')
-    create_pr_curve(df_new)
-    print('created ROC-CURVE')
-    create_roc_curve(df_new)
+    print('--------МОДЕЛЬ НА ОСНОВІ ЕНТРОПІЇ--------')
+    clf_entropy = DecisionTreeClassifier(criterion='entropy', max_depth=5)
+    clf_entropy.fit(X_train, y_train)
+    y_p_entropy = clf_entropy.predict(X_test)
+    print(classification_report(y_test, y_p_entropy))
+
+    dot_data_entropy = export_graphviz(clf_entropy, out_file=None, feature_names=X.columns,
+                                       filled=True, rounded=True, special_characters=True)
+    tr_entropy = graphviz.Source(dot_data_entropy)
+    tr_entropy.view(filename="Tree Decision Entropy")
+
+    print('--------МОДЕЛЬ НА ОСНОВІ НЕОДНОРІДНОСТІ ДЖИНІ--------')
+    clf_gini = DecisionTreeClassifier(criterion='gini', max_depth=5)
+    clf_gini.fit(X_train, y_train)
+    y_p_gini = clf_gini.predict(X_test)
+    print(classification_report(y_test, y_p_gini))
+
+    dot_data_gini = export_graphviz(clf_gini, out_file=None, feature_names=X.columns,
+                                    filled=True, rounded=True, special_characters=True)
+    tr_gini = graphviz.Source(dot_data_gini)
+    tr_gini.view(filename="Decision Tree Gini")
+
+    '''З’ясувати вплив глибини дерева та мінімальної кількості елементів в
+    листі дерева на результати класифікації. Результати представити
+    графічно.'''
+    depth = np.arange(1, 10)
+    min_el_count = np.arange(1, 10)
+    plot_influence(depth, min_el_count)
+
+    '''Навести стовпчикову діаграму важливості атрибутів, які
+    використовувалися для класифікації'''
+    feature_name = list(df.columns[:-1])
+    models = [clf, clf_entropy, clf_gini]
+    model_names = ['Initial model', 'Entropy model', 'Gini model']
+    plot_importance(models, model_names)
