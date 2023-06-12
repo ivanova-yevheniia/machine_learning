@@ -1,0 +1,32 @@
+[class 0, class 1]
+[2500, 2500]
+data is balanced
+Enter threshold: 0.1
+----------METRICS----------
+Model_1: 
+{'accuracy': 0.5, 'precision': 0.5, 'recall': 1.0, 'F-Scores': 0.6666666666666666, 'Matthews Correlation Coefficient': 0.0, 'Balanced Accuracy': 0.5, 'Youden’s J statistics': 0.0, 'Area Under Curve for Precision-Recall Curve': 0.75, 'Area Under Curve for Receiver Operation Curve': 0.5}
+Model_2: 
+{'accuracy': 0.717, 'precision': 0.6426505390481199, 'recall': 0.9776, 'F-Scores': 0.7755037283833095, 'Matthews Correlation Coefficient': 0.5085334211038962, 'Balanced Accuracy': 0.717, 'Youden’s J statistics': 0.43399999999999994, 'Area Under Curve for Precision-Recall Curve': 0.8157252695240599, 'Area Under Curve for Receiver Operation Curve': 0.7170000000000001}
+created chart with METRICS VALUES
+created CLASSIFIER GRAPH for MODEL 1
+created CLASSIFIER GRAPH for MODEL 2
+created PR-CURVE
+created ROC-CURVE
+CREATING NEW DATASET...
+Date:  10-09
+Remove  0.6 % of class 1
+Total:  1500 rows
+GT
+0    2500
+1    1000
+Name: count, dtype: int64
+Created new.csv with new dataset
+----------METRICS----------
+Model_1: 
+{'accuracy': 0.2857142857142857, 'precision': 0.2857142857142857, 'recall': 1.0, 'F-Scores': 0.4444444444444445, 'Matthews Correlation Coefficient': 0.0, 'Balanced Accuracy': 0.5, 'Youden’s J statistics': 0.0, 'Area Under Curve for Precision-Recall Curve': 0.6428571428571428, 'Area Under Curve for Receiver Operation Curve': 0.5}
+Model_2: 
+{'accuracy': 0.6062857142857143, 'precision': 0.41923076923076924, 'recall': 0.981, 'F-Scores': 0.5874251497005989, 'Matthews Correlation Coefficient': 0.4197704469310707, 'Balanced Accuracy': 0.7187, 'Youden’s J statistics': 0.4374, 'Area Under Curve for Precision-Recall Curve': 0.7028296703296704, 'Area Under Curve for Receiver Operation Curve': 0.7186999999999999}
+created CLASSIFIER GRAPH for MODEL 1
+created CLASSIFIER GRAPH for MODEL 2
+created PR-CURVE
+created ROC-CURVE
